@@ -1,0 +1,47 @@
+_satellite.pushAsyncScript(function(event, target, $variables){
+  console.log("DTM TrustArc - Initiating consent cookies script - EU Site");
+
+var isPunchOut = fisherDataLayer.userData.userIsPunchOut;
+var companyAccounts = ["3188002", "2427250", "3071227", "3139598", "3154959", "2950574", "2439353", "2420445", "2429555", "3172939", "3076896", "2936634"];
+var account = fisherDataLayer.userData.account;
+
+// If user is PunchOut and its company name is listed, DO NOT execute TrustAcr script
+if (isPunchOut && companyAccounts.indexOf(account) > -1) {
+  console.log("The user is a PunchOut user and its company name is listed - The TrustArc consent cookies script WON'T be implemented");
+} else {
+  console.log("PunchOut user: " + isPunchOut + " - Implementing TrustArc consent cookies");
+ 
+    //Austria, Germany, Portugal, France, Norway, Spain, Sweden, GreatBritainUK, Switzerland
+    var expressConsentCountries = ["at", "de", "pt", "fr", "no", "es", "se", "gb", "ch"];
+
+    var THIS_LOCALE_PATH = LocalePath.getLocalePath();
+    var locale = THIS_LOCALE_PATH.split("/").filter(Boolean);
+    console.log(locale);
+
+    var scriptURL = "//consent.truste.com/notice?domain=thermofisher.com&c=teconsent&js=nj&noticeType=bb";
+
+    var styles = "position: sticky; top: 0; width: 100%; background-color: white; border-bottom: 1px solid #efeced; z-index: 1000;";
+
+    var consentCookie =
+        '<div id="cookieWrapper" style="' + styles + '">' +
+            '<div id="consent_blackbar"></div>' +
+            '<script async="async" src=' + scriptURL + ' crossorigin=""></script>' +
+        '</div>';
+
+    var consentPreferences =
+        '<div id="cookieWrapperFooter">' +
+            '<div id="teconsent" style="display: none;"></div>' +
+        '</div>';
+    
+    if (locale[0] != "us") {
+        var consentType = (expressConsentCountries.indexOf(locale[0]) < 0) ? " - Implied Consent" : " - Express Consent";
+        console.log(locale[0] + consentType);  
+        $("body").prepend(consentCookie);
+        $("#footer").append(consentPreferences);
+    } else {
+        console.log("DTM TrustArc - US Site. Not showing consent cookies");
+    }
+}
+ 
+console.log("DTM TrustArc - Consent Cookies script finished");
+});

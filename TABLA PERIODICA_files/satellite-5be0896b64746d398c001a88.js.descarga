@@ -1,0 +1,13 @@
+_satellite.pushBlockingScript(function(event, target, $variables){
+  var callbackscriptdmdbase = document.createElement("script");
+callbackscriptdmdbase.onload = function(){
+	var apiCalldmdbase = document.createElement("script"); 
+	apiCalldmdbase.type = "text/javascript"; 
+	apiCalldmdbase.src = "//api.company-target.com/api/v2/ip.json?key=1565d8a3b0ad92ba0081d3d69b56f8f6&callback=Dmdbase_CDC.callback"; 
+	document.head.appendChild(apiCalldmdbase); 
+}
+	
+callbackscriptdmdbase.type = "text/javascript"; 
+callbackscriptdmdbase.src = "//scripts.demandbase.com/adobeanalytics/2b0f09bb.min.js"; 
+document.head.appendChild(callbackscriptdmdbase);
+});

@@ -1,0 +1,776 @@
+function Offers(){this.sessionData={sessionId:null,ips:[],referrerDomain:"",searchTerm:"NULL",isNewVisitor:false,cid:"NULL",iCount:0,marketingPageId:"",marketingRegion:"",pagePath:"",userType:"",channel:""};
+this.marketingRegionMap={};
+this.debugOffers=false;
+this.ips_details=[];
+this.payload=false;
+this.waitForPayload=false;
+this.executed=false;
+this.channel="";
+this.searchTerm="NULL";
+this.loadOfferURL="/event/offer/load";
+this.postEventURL="/event/offer/postevent";
+this.aemOfferUiURL="/event/offer/ui";
+this.initComplete=false;
+this.initStart=new Date().getTime();
+this.initEnd=0;
+this.initDuration=0;
+this.request={};
+this.response={};
+this.currentUserProfile={};
+this.userIsPunchOut=false;
+this.getCookie=function(i){var h=i+"=";
+var d=document.cookie;
+var g=d.indexOf(h);
+var e=null;
+var f;
+if(g!=-1){f=d.indexOf("; ",g);
+if(f===-1){f=d.length
+}e=d.slice(g+h.length,f);
+e=unescape(e)
+}return e
+};
+this.monitorCookie=function(){var d=this.getCookie("s_vi");
+if(this.debugOffers){console.log("cookieValue = "+d)
+}if(d&&this.sessionData.sessionId!==d){window.clearInterval(this.monitorCookieInterval);
+this.sessionData.sessionId=d
+}this.monitorCookieIntervalCount++;
+if(this.monitorCookieIntervalCount===25){window.clearInterval(this.monitorCookieInterval);
+this.sessionData.sessionId="cookies-disabled"
+}};
+this.sessionData.sessionId=this.getCookie("s_vi");
+this.monitorCookieInterval=null;
+this.monitorCookieIntervalCount=0;
+if(this.sessionData.sessionId==null){this.monitorCookieInterval=window.setInterval("Offers.monitorCookie()",100)
+}if(typeof document.referrer!=="undefined"&&document.referrer.length>0){var a=document.referrer;
+var c=a.match(/:\/\/([^/]+)\//)[1];
+if(c.indexOf("thermofisher.com")==-1){this.sessionData.referrerDomain=c
+}}this.monitorjQuery=function(d){if(typeof $!=="undefined"){d()
+}else{window.setTimeout(function(){Offers.monitorjQuery(d)
+},100)
+}};
+this.getUrlParameter=function b(e){var h=decodeURIComponent(window.location.search.substring(1)),g=h.split("&"),j,f,d=false;
+for(f=0;
+f<g.length;
+f++){j=g[f].split("=");
+if(j[0]===e){d=j[1]===undefined?true:j[1];
+break
+}}return d
+};
+this.prepareInteractOfferRequest=function(j,f){interactOfferRequest=$.extend({},this.sessionData);
+interactOfferRequest.isNewVisitor=this.getIsNewVisitor("s_days_since");
+var e=this.getQueryParam("CID");
+if(e.length!==0){interactOfferRequest.cid=e
+}interactOfferRequest.channel=this.channel;
+interactOfferRequest.userType=this.getUserType();
+interactOfferRequest.marketingRegion=this.getMarketingRegion();
+interactOfferRequest.marketingPageId=this.getMarketingPageId();
+var h=[];
+for(var g=0;
+g<f.length;
+g++){h.push(f[g].name)
+}interactOfferRequest.ips=h;
+interactOfferRequest.iCount=interactOfferRequest.ips.length;
+interactOfferRequest.pagePath=this.processPagePath(window.location.pathname,window.location.search);
+if(this.channel==="fs"){var d=this.getCookie("locale");
+if(!!d){d=d.toLowerCase().split("_");
+interactOfferRequest.countryCode=d[1];
+interactOfferRequest.langCode=d[0]
+}else{pathname=window.location.pathname.split("/");
+if(pathname.length>1){if(pathname[1].length===2&&pathname[2].length===2){interactOfferRequest.countryCode=pathname[1];
+interactOfferRequest.langCode=pathname[2]
+}}}}if(j){if(j.hasOwnProperty("skus")){j.pdpSkus=j.skus;
+delete j.skus
+}if(j.hasOwnProperty("cartTotal")){j.cartTotal=j.cartTotal.replace(/[$,]+/g,"")
+}if(j.hasOwnProperty("cartSkus")){j.cartSkus=this.createCartSkusObj(j.cartSkus)
+}if(j.hasOwnProperty("searchTerm")){this.searchTerm=j.searchTerm
+}$.extend(interactOfferRequest,j)
+}if(this.debugOffers){console.log("offers.js - Offers Request Payload for Interact: "+JSON.stringify(interactOfferRequest))
+}return interactOfferRequest
+};
+this.getIps=function(h){var f=".dynamic-offer[id]";
+var g=".dynamic-offer:not([id])";
+var j=[];
+$(f).each(function(){var i=$(this).attr("id");
+if(!!i){j.push({name:i,type:"id"})
+}});
+$(g).each(function(){var m=$(this).attr("class");
+if(!!m){m=m.split(" ");
+for(var l=0;
+l<m.length;
+l++){var k=m[l];
+if(k.indexOf(Offers.channel+"-")>-1&&Offers.indexOfIPS(j,k)==-1){j.push({name:k,type:"class"})
+}}}});
+if(!!h&&!!h.exclude){var d=-1;
+for(var e=0;
+e<h.exclude.length;
+e++){d=Offers.indexOfIPS(j,h.exclude[e]);
+if(d>-1){j.splice(d,1)
+}}}return j
+};
+this.init=function(){if(this.initComplete){return
+}window.performance&&window.performance.mark&&window.performance.mark("offers.js:initBegin");
+if(typeof $=="undefined"){this.monitorjQuery(function(){Offers.init()
+});
+return
+}this.validVersion=this.minimalVersion();
+debugOffers=this.getUrlParameter("debug_offers");
+if(typeof debugOffers!=="undefined"){this.debugOffers=debugOffers
+}console.log("offers.js - debugOffers flag = "+this.debugOffers);
+if(!navigator.cookieEnabled){this.sessionData.sessionId="cookies-disabled"
+}this.channel=this.getChannel();
+this.checkHost();
+this.initMarketingRegionMap();
+this.initComplete=true;
+window.performance&&window.performance.mark&&window.performance.mark("offers.js:initEnd")
+};
+this.pageType={search:function(){var d=".dynamic-offer[id]";
+$(d).each(function(){var e=$(this).attr("id");
+if(!!e&&e.indexOf("-search-")>-1){return true
+}});
+if(Offers.channel==="fs"){return Offers.location.href().indexOf("/catalog/search/products")>-1
+}if(Offers.channel==="tf"){return Offers.location.href().indexOf("/search/results")>-1
+}return false
+},pdp:function(){var d=".dynamic-offer[id]";
+$(d).each(function(){var f=$(this).attr("id");
+if((!!f&&f.indexOf("-pdp-")>-1)){return true
+}});
+var e=".dynamic-offer:not([id])";
+$(e).each(function(){var f=$(this).attr("class");
+if(!!f&&f.indexOf("-pdp-")>-1){return true
+}});
+if(Offers.channel==="fs"){return Offers.location.href().indexOf("/shop/products/")>-1
+}if(Offers.channel==="tf"){return Offers.location.href().indexOf("/order/catalog/product/")>-1
+}return false
+},cq:function(){if(Offers.channel=="fs"){var e=Offers.location.href();
+var d=".*fishersci..*/products/.*.html$";
+return e.match(d)!=null
+}return false
+},gs:function(){if(Offers.channel=="fs"){var e=Offers.location.href();
+var d=".*fishersci..*/browse/.*";
+return e.match(d)!=null
+}return false
+},cart:function(){}};
+this.checkHost=function(){if(this.channel==="tf"){if(window.location.host.indexOf("commerce")!==-1){var d=window.location.origin.replace("commerce","www");
+this.loadOfferURL=d+this.loadOfferURL;
+console.log("Thermo Fisher - found commerce page - redirecting load offer url to "+this.loadOfferURL);
+this.postEventURL=d+this.postEventURL;
+console.log("Thermo Fisher - found commerce page - redirecting post event url to "+this.postEventURL)
+}}};
+this.initMarketingRegionMap=function(){var d=["at","be","ch","de","dk","es","fi","fr","gb","ie","it","nl","no","pt","se"];
+var e=["us","ca"];
+for(var f=0;
+f<d.length;
+f++){this.marketingRegionMap[d[f]]="EMEA"
+}for(var f=0;
+f<e.length;
+f++){this.marketingRegionMap[e[f]]="NA"
+}};
+this.loadOffers=function(g,f){this.ips_details=this.getIps(f);
+var d=this.payloadRequired(this.ips_details);
+if(!d&&g){return"does not need payload"
+}if(d&&!g){return"need payload"
+}var e=this.prepareInteractOfferRequest(g,this.ips_details);
+this.request=e;
+this.invokeOfferSnippetAjax(e);
+return"Offers Complete"
+};
+this.validatePayload=function(g,d){var f=false;
+if(g===null||typeof g==="undefined"){if(this.debugOffers){console.log("Empty payload to request dynamic offer for "+d+" result page")
+}return f
+}if(d==="search"){var e=g;
+if(!e.hasOwnProperty("searchTerm")){if(this.debugOffers){console.log("Missing parameter searchTerm in the payload.")
+}}else{if(!e.hasOwnProperty("focusArea")){if(this.debugOffers){console.log("Missing parameter focusArea in the payload.")
+}}else{f=true;
+if(!e.searchTerm||!e.searchTerm.trim()){if(this.debugOffers){console.warn("WARN: empty search term.")
+}f=true
+}if(!e.focusArea||!e.focusArea.trim()){if(this.debugOffers){console.warn("WARN: Empty focus area.")
+}f=true
+}}}}else{if(d==="pdp"){f=this.validatePdpPayload(g)
+}}return f
+};
+this.validatePdpPayload=function(f){var e=true;
+var d=f;
+if(!d.hasOwnProperty("skus")||!d.skus){e=false;
+if(this.debugOffers){console.log("Missing skus parameter in the payload.")
+}}return e
+};
+this.loadSearchOffers=function(d){var e=this.validatePayload(d,"search");
+if(this.debugOffers){console.log("Search offer payload is valid? : "+e);
+console.log("Loading search offer with payload: "+JSON.stringify(d))
+}if(this.initComplete&&this.validVersion){$(function(){if(Offers.pageType.search()){Offers.start(d)
+}})
+}};
+this.loadPdpOffers=function(d){if(this.initComplete&&this.validVersion){var e=this.validatePayload(d,"pdp");
+if(this.debugOffers){console.log("PDP offer payload is valid? : "+e);
+console.log("Loading PDP offer with payload: "+JSON.stringify(d))
+}$(function(){if(Offers.channel==="tf"){var f={exclude:["tf-cart-overlay-1"]};
+Offers.start(d,f)
+}else{if(Offers.channel==="fs"){if(Offers.pageType.pdp()){Offers.start(d)
+}}}})
+}};
+this.loadCartOffers=function(d){if(this.initComplete&&this.validVersion){$(function(){Offers.start(d)
+})
+}};
+this.loadCartOverlay=function(d){if(this.initComplete&&this.validVersion){$(function(){var e={include:["tf-cart-overlay-1"]};
+Offers.start(d,e)
+})
+}};
+this.start=function(e,d){if(!this.sessionData.sessionId){window.setTimeout(function(){Offers.start(e,d)
+},100);
+return false
+}this.loadOffers(e,d);
+return true
+};
+this.createCartSkusObj=function(e){var i={};
+if(e){for(var f=0;
+f<e.length;
+f++){var h=e[f].sku;
+var g=e[f].quantity;
+if(i.hasOwnProperty(h)){var d=i[h];
+i[h]=d+g
+}else{i[h]=g
+}}}return i
+};
+this.invokeOfferSnippetAjax=function(d){window.performance&&window.performance.mark&&window.performance.mark("offers.js:loadBegin");
+if(this.channel==="fs"){if(d.sessionId==="cookies-disabled"){var e=this.getCookie("s_vi");
+if(!!e){d.sessionId=e
+}}}$.ajax({url:this.loadOfferURL,type:"POST",data:JSON.stringify(d),contentType:"application/json; charset=utf-8",dataType:"json",timeout:8000,success:function(h,i,g){if(g&&g.hasOwnProperty("responseText")){var f=JSON.parse(g.responseText);
+Offers.response=f;
+Offers.setInteractValues(f);
+if(Offers.debugOffers){console.log("offers.js - Starting loading offers for session:::: "+f.hasOwnProperty("statusCode")?"status code : "+f.statusCode:"no status code")
+}if(f.hasOwnProperty("statusCode")&&f.statusCode==200){Offers.loadOfferSnippetHTML(f.offerPlacementMap)
+}else{console.log("offers.js - Status Code: Not defined or not 200. Showing default contents.");
+Offers.showDefaultContent()
+}}else{console.log("offers.js - No jqXHR.hasOwnProperty - responseText");
+Offers.showDefaultContent()
+}window.performance&&window.performance.mark&&window.performance.mark("offers.js:loadEnd")
+},error:function(g,f){console.log("offers.js - Load call did not complete correctly");
+Offers.showDefaultContent();
+window.performance&&window.performance.mark&&window.performance.mark("offers.js:loadEnd")
+}})
+};
+this.setInteractValues=function(f){if(typeof Interact!=="undefined"){var h=(f.hasOwnProperty("sessionId")?f.sessionId:"");
+var g=(f.hasOwnProperty("s_vi_low")?f.s_vi_low:"");
+var d=(f.hasOwnProperty("s_vi_high")?f.s_vi_high:"");
+var e=(f.hasOwnProperty("timeStamp")?f.timeStamp:new Date());
+Interact.sessionId=h;
+Interact.s_vi_low=g;
+Interact.s_vi_high=d;
+Interact.timeStamp=e;
+Interact.localTimeStamp=new Date();
+this.cid=this.getCookie("s_cmp_tc");
+if(!!Interact.startSessionComplete&&typeof Interact.startSessionComplete.resolve==="function"){Interact.startSessionComplete.resolve()
+}if(this.debugOffers){console.log("offers.js - Interact sessionId = "+Interact.sessionId);
+console.log("offers.js - Interact s_vi_low = "+Interact.s_vi_low);
+console.log("offers.js - Interact s_vi_high = "+Interact.s_vi_high);
+console.log("offers.js - Interact timeStamp = "+Interact.timeStamp);
+console.log("offers.js - Interact startSessionComplete  as resolved")
+}}else{if(this.debugOffers){console.log("offers.js - Interact object not defined!!!")
+}}};
+this.showDefaultContent=function(f){if(!!f&&f.indexOf("fs-gs")>-1){var i=$("#"+f).attr("data-default-snippet");
+i+=".html";
+$.ajax({url:i,success:function(j){$("#"+f).html(j)
+},error:function(){console.error("offers.js failed to load default content on FS guided search page.")
+}});
+return
+}var h;
+var g;
+if(f){var e=$("#"+f).length>0?"#":".";
+h=$(e+f).children(".loading-wheel-block");
+g=h.children(".loading-wheel");
+console.log("offers.js - Showing default content for: "+e+f)
+}else{console.log("offers.js - Showing default content");
+h=$(".loading-wheel-block");
+g=$(".loading-wheel")
+}var d=h.children(".defaultOffer");
+h.css("padding-top","0px");
+d.css("visibility","visible");
+g.remove();
+if(this.channel==="fs"){d.find(".parsys.content-par-main").removeAttr("style")
+}};
+this.loadOfferSnippetHTML=function(k){var m=this.ips_details;
+var f=0;
+if(!m){return
+}if(!k){this.showDefaultContent();
+return
+}if(Offers.pageType.gs()){var p=["fs-gs-fad_s_1","fs-gs-fad_s_2","fs-gs-fad_s_3"];
+var g=false;
+for(var h=0;
+h<3;
+h++){if(p[h] in k){g=true;
+break
+}}if(!g){for(var h=0;
+h<3;
+h++){$("#"+p[h]).hide()
+}}}for(var n=0;
+n<m.length;
+n++){var l=m[n].name;
+var e=m[n].type;
+if(!k.hasOwnProperty(l)||!k[l].snippetPath){this.showDefaultContent(l)
+}else{var j=k[l];
+this.loadIndividualOffer(l,j,n,e);
+f++;
+if(this.debugOffers){console.log("offers.js - Offer for div "+e+": "+l+" -> "+JSON.stringify(j));
+var d=this.buildDebugDetails(j);
+var o=$((e==="id"?"#":".")+l);
+o.after(d)
+}}}if(this.debugOffers){console.log("offers.js - loadOfferSnippetHTML: Total Offer to execute = "+f)
+}};
+this.jcrContentFormat=function(e){if(this.channel==="fs"&&!!e){var d="/jcr:content/content-par-main.html";
+e=e.split(".html")[0]+d
+}return e
+};
+this.loadIndividualOffer=function(l,i,n,f){var g=i;
+var j=g.hasOwnProperty("snippetPath")?g.snippetPath:"";
+var m=l;
+var o=$((f==="id"?"#":".")+m);
+var h=false;
+var k={};
+var d={isOverlayOffer:l.indexOf("-overlay-")>-1,isCartOffer:l.indexOf("-cart-")>-1,isCQOffer:l.indexOf("-cq-")>-1,isPdpOffer:l.indexOf("-pdp-")>-1,isSearchOffer:l.indexOf("-search-")>-1,isHeaderOffer:l.indexOf("-hb")>-1,isGSOffer:l.indexOf("-gs")>-1};
+if(j.indexOf(this.aemOfferUiURL)>-1){h=true;
+if(g.hasOwnProperty("dpoSkuList")&&!!g.dpoSkuList){var e={};
+e.promotionalSkus=g.dpoSkuList;
+k.dpoSkus=JSON.stringify(e)
+}else{k.dpoSkus=""
+}}else{j=this.jcrContentFormat(j)
+}if(this.debugOffers){console.log("offers.js - snippetPath for divId : "+m+"= "+j)
+}$.ajax({data:k,url:j,success:function(r){if((h&&!!r)||Offers.isValidHtmlOfferStructure(r)){o.html(r);
+Offers.checkForCartoverlayOffer(r,o);
+o.removeClass("hide");
+var p=o.find("a")?o.find("a").attr("href"):"";
+if(d.isSearchOffer||d.isHeaderOffer||d.isPdpOffer){var q=Offers.prepareInteractReportParams(d,g,p);
+Offers.postEvent(g,"contact",q)
+}else{Offers.postEvent(g,"contact",{})
+}Offers.ctaAction(d,g,o,n)
+}else{Offers.showDefaultContent(l)
+}},error:function(){Offers.showDefaultContent(l)
+}})
+};
+this.prepareInteractReportParams=function(d,e,f){var g={};
+g.userType=this.userIsPunchOut?"B2B":"B2C";
+g.pagePath=Offers.request.pagePath;
+if(e.hasOwnProperty("interactPoint")){interactPointArray=e.interactPoint.split("|");
+g.placementCode=interactPointArray[interactPointArray.length-1]
+}g.searchTerm=d.isSearchOffer?Offers.request.searchTerm:undefined;
+g.offerUrl=(d.isPdpOffer||d.isHeaderOffer)?Offers.validInteractOfferUrl(e,f):undefined;
+g.estoreType=(d.isPdpOffer||d.isSearchOffer)?this.getEstore():undefined;
+g.division=(d.isPdpOffer||d.isSearchOffer)?this.getBusinessDivision():undefined;
+g.productSku=d.isPdpOffer?Offers.request.pdpSkus:undefined;
+return g
+};
+this.getCurrentUserProfile=function(){var d=window.location.origin+"/shop/service/profiles/current";
+$.get(d,function(g){if(this.debugOffers){console.log("getCurrentUserProfile "+JSON.stringify(g))
+}Offers.currentUserProfile=g
+});
+if(!!Offers.currentUserProfile){var f=Offers.currentUserProfile.userDetails;
+if(!!f){var e=f.userIsPunchOut;
+Offers.userIsPunchOut=e
+}}};
+this.getBusinessDivision=function(){var d=this.getEstore();
+var e={"estore-scientific":"RSD","estore-healthcare":"HMD","estore-scied":"FSE"};
+if(!!e[d]){return e[d]
+}return""
+};
+this.ctaAction=function(d,h,g,f){if(d.isOverlayOffer){this.initCartOverlayCtaActions(h)
+}else{if(d.isCartOffer){this.initCartCtaActions(h,g,f)
+}else{if(d.isPdpOffer){if(this.channel==="tf"){this.initTFPdpCtaActions(h,g)
+}else{if(this.channel==="fs"){this.initFSPdpCtaActions(h,g)
+}}}else{if(d.isCQOffer){this.initCqCtaActions(h,g)
+}else{if(d.isGSOffer){this.initGSCtaActions(h,g)
+}else{if(d.isSearchOffer){this.initSearchCtaActions(h,g)
+}else{try{this.HeaderFooterCtaAction[this.channel](h,g)
+}catch(e){console.log("no function for this channel: "+this.channel)
+}}}}}}}};
+this.isValidHtmlOfferStructure=function(f){var h=false;
+if(typeof f!=="undefined"&&f.length>0){if(f.indexOf("<head")==-1){h=true
+}else{var g=new DOMParser().parseFromString(f,"text/html");
+var d=$(g).find("head");
+if(typeof d!=="undefined"&&d.length>0){var e=d.html();
+if(typeof e!=="undefined"&&e.trim().length==0){h=true
+}}}}return h
+};
+this.sendAnalytics=function(g,f,e,d){if("tf"===this.channel){this.tfAnalytics(g,f,e,d)
+}};
+this.tfAnalytics=function(j,i,g,f){if(typeof s!=="undefined"){var e="";
+var h="";
+s.linkTrackVars="prop66,eVar66,prop67,eVar67";
+switch(j){case"pdp":var k=location.pathname.replace(/^(\/[a-z]+)(\/[a-z]+)(\/[a-z]+)(\/)/g,"");
+var d=s.pageURL;
+h="PDP Offers";
+e="View PDP ("+k+"): UpSell Promotion- 0";
+this.pdpAnalytics(g.offerIcid);
+break;
+case"search":h="Search Offers";
+e="View Search Page: Promotion- 0";
+this.searchAnalytics(g.offerIcid);
+break;
+case"cart":e="View Cart: UpSell Promotion- "+f;
+h="Cart Offers";
+break;
+case"overlay":e="View cart overlay: UpSell Promotion - 0";
+h="Cart Offers";
+this.pdpAnalytics(g.offerIcid);
+break
+}s.prop66=e;
+s.eVar66=e;
+s.prop67=e;
+s.eVar67=e;
+s.tl(i,"o",h,null,null);
+if(j==="pdp"){s.pageURL=d
+}}};
+this.pdpAnalytics=function(e){if(typeof e!=="undefined"&&e.length>0){s.linkTrackVars+=",eVar21";
+s.eVar21=e;
+s.pageURL=this.addParameter(s.pageURL,"icid",e);
+var d=new Date();
+d.setTime(d.getTime());
+this.setCookie("s_ev21_tc","",d)
+}};
+this.searchAnalytics=function(d){var g="AEM|Search Results";
+var h="";
+if(this.isValidValue(search.main.params.autoCorrectedKeyword)){h=search.main.params.autoCorrectedKeyword
+}else{h=this.searchTerm.toLowerCase()
+}s.linkTrackVars+=",prop14,eVar14";
+s.prop14=g;
+s.eVar14=g;
+if(this.isValidValue(h)){s.linkTrackVars+=",prop44,eVar44";
+var f="AEM|"+h;
+s.prop44=f;
+s.eVar44=f;
+if(this.isValidValue(d)){s.linkTrackVars+=",prop34,eVar34";
+var e="AEM|PROMO-CODE|"+d+"|"+h;
+s.prop34=e;
+s.eVar34=e
+}}};
+this.initTFPdpCtaActions=function(h,e){var g=e.find("button").attr("class");
+var k=e.find("button."+g).first();
+var j=k.data("target");
+var d=j.substring(1);
+var f=d.replace(/[^A-Za-z0-9\-\_]+/g,"");
+var i=this.validInteractOfferUrl(h);
+document.getElementById(d).id=f;
+j="#"+f;
+k.attr("data-target",j);
+k.attr("data-url",i);
+k.unbind("click");
+k.attr("data-toggle","hide");
+k.click(function(){Offers.postEvent(h,"accept",{});
+var l=$(j).find("div.modal-body");
+l.load(i+" .MainParsys",function(n,m,o){if(m==="success"){k.attr("data-toggle","modal");
+$(j).modal("show");
+console.log("Load offer url success: "+i)
+}if(m==="error"){console.log("Error "+o.status+": "+o.statusText)
+}});
+Offers.sendAnalytics("pdp",this,h)
+})
+};
+this.initFSPdpCtaActions=function(h,f){var j=f.find("img");
+var i="";
+var e=null;
+if(j.length>0){if(j.parent().is("a")&&typeof j.parent().attr("href")!=="undefined"){i=j.parent().attr("href");
+var d=h.offerIcid;
+i=Offers.addParameter(i,"icid",d);
+j.parent().attr("href",i);
+e=j.parent()
+}else{i=this.validInteractOfferUrl(h);
+if(i!==""){e=$("<a href="+i+"></a>");
+f.find("img").wrap(e)
+}}if(e!==null&&f.find("a").length>0){var g=f.find("a");
+g.click(function(){var k=Offers.prepareInteractReportParams({isPdpOffer:true},h,i);
+Offers.postEvent(h,"accept",k)
+})
+}}else{if(this.debugOffers){console.log("Cannot find responsive images in offer.")
+}}};
+this.initCqCtaActions=function(g,e){e.find("img").each(function(){var i=$(this);
+if(!i.parent().is("a")){i.wrap("<a> </a>")
+}});
+var f=e.find("a");
+if(f.length===0){console.log("offers.js - The CQ offer is not having an HTML a tag so the Accept event can't be added.");
+return
+}var h="";
+var d=this.getUrlParameter("emid");
+f.each(function(){h=Offers.validInteractOfferUrl(g,$(this).attr("href"));
+if(!!d){h=this.addParameter(h,"emid",d)
+}$(this).attr("href",h)
+});
+f.click(function(){Offers.postEvent(g,"accept",{})
+})
+};
+this.initGSCtaActions=function(e,d){this.initCqCtaActions(e,d)
+};
+this.initSearchCtaActions=function(g,e){var f=e.find("a");
+var d=f.attr("href");
+var h=this.validInteractOfferUrl(g,d);
+f.attr("href",h);
+f.click(function(){if(Offers.channel==="fs"){var i=Offers.prepareInteractReportParams({isSearchOffer:true},g);
+Offers.postEvent(g,"accept",i)
+}else{Offers.postEvent(g,"accept",{})
+}Offers.sendAnalytics("search",this,g)
+})
+};
+this.HeaderFooterCtaAction={tf:function(k,g){var j=g.attr("id");
+var e=(j.indexOf("hb")>-1)?".promo-bar-snippet":".landscape-banner-snippet";
+var i=g.find(e);
+var h=i.attr("href");
+var d=Offers.validInteractOfferUrl(k,h);
+i.attr("href",d);
+i.click(function(){Offers.postEvent(k,"accept",{})
+});
+if(e===".landscape-banner-snippet"){var f=$("#tf-headerfooter-lb");
+f.find("button.landscape-banner-button").each(function(){$(this).click(function(){Offers.postEvent(k,"reject",{})
+})
+})
+}},fs:function(i,e){var h=e.attr("id");
+var g=e.find("a");
+var f=g.attr("href");
+var d=Offers.validInteractOfferUrl(i,f);
+g.attr("href",d);
+g.click(function(){var j=Offers.prepareInteractReportParams({isHeaderOffer:true},i,f);
+Offers.postEvent(i,"accept",j)
+})
+}};
+this.initCartOverlayCtaActions=function(f){var d=$(".overlay-modal-body");
+var h=$(".chevroncont");
+var e=$(".chevroncont").find("button");
+var g=this.validInteractOfferUrl(f);
+d.load(g+" .MainParsys");
+h.click(function(){$(".chevronoverlay").toggleClass("down");
+if(e.text()==="Learn more"){e.text("Show less");
+d.show();
+Offers.sendAnalytics("overlay",this,f);
+Offers.postEvent(f,"accept",{})
+}else{e.text("Learn more");
+d.hide();
+Offers.postEvent(f,"ignore",{})
+}})
+};
+this.initCartCtaActions=function(g,e,d){var f=e.find("button").attr("class");
+var j=e.find("button."+f);
+var i=this.validInteractOfferUrl(g);
+j.attr("data-url",i);
+j.unbind("click");
+j.attr("data-toggle","hide");
+var h=j.data("target");
+j.click(function(){var k=$(h).find("div.modal-body");
+k.load(i+" .MainParsys",function(){j.attr("data-toggle","modal");
+$(h).modal("show")
+});
+Offers.postEvent(g,"accept",{});
+Offers.sendAnalytics("cart",this,g,d)
+})
+};
+this.validInteractOfferUrl=function(g,f){var d=g.offerUrl;
+var e=g.offerIcid;
+d=(!!d&&d!=="."&&d!=="_")?d:f;
+if(!d){return""
+}if(!!e&&e!=="."&&e!=="_"){e=e.replace(/\s+/g,"");
+d=this.addParameter(d,"icid",e)
+}return d
+};
+this.isValidValue=function(d){return(typeof d!=="undefined"&&d.length>0)
+};
+this.buildDebugDetails=function(h){var j=h.sessionId||"";
+var f=h.offerUrl||"";
+var e=h.treatmentCode||"";
+var g=h.interactPoint||"";
+var k=h.offerIcid||"";
+var d=h.snippetPath||"";
+var i="";
+i="<div id='offerSnippetDebug'><div class='alert text-left' style='font-size: 10px; overflow-wrap: break-word;'>";
+i+="SessionId: "+j+"<br>";
+i+="Interaction Point: "+g+"<br>";
+i+="OfferUrl: "+f+"<br>";
+i+="TreatmentCode: "+e+"<br>";
+i+="ICID: "+icid+"<br>";
+i+="Snippet Path: "+d+"<br>";
+i+="</div></div>";
+console.log("debug="+i);
+return i
+};
+this.postEvent=function(k,d,f){var h=k.sessionId;
+var e=k.treatmentCode;
+if(this.debugOffers){console.log("postEvent sessionId = "+h);
+console.log("postEvent treatmentCode = "+e);
+console.log("postEvent eventType = "+d)
+}if(typeof e=="undefined"||e==""){return true
+}var j={};
+j.sessionId=h;
+j.treatmentCode=e;
+j.eventType=d;
+j.channel=this.channel;
+j.action="pageview";
+if(this.internal){j.internal=true
+}if(this.debugOffers){console.log("interactReportParams: "+JSON.stringify(f))
+}try{$.extend(j,f)
+}catch(l){console.error(l);
+var o=Object.keys(f);
+for(var g=0;
+g<o.length;
+g++){var n=o[g];
+var m=f[n];
+j[n]=m
+}}$.ajax({url:this.postEventURL,type:"POST",data:JSON.stringify(j),contentType:"application/json; charset=utf-8",dataType:"json"})
+};
+this.getIsNewVisitor=function(e){var d=Offers.getDaysSinceLastVisit(e+"_new");
+if(d==="First Visit"||d==="Less than 1 day"||d==="Less than 7 days"){return true
+}else{return false
+}};
+this.getDaysSinceLastVisit=function(q){var o=new Date();
+var t=new Date();
+var l;
+var h;
+var u;
+var n=o.getTime();
+var r=24*60*60*1000;
+var m="Cookies Not Supported";
+var k="First Visit";
+var j="More than 30 days";
+var i="More than 7 days";
+var g="Less than 7 days";
+var f="Less than 1 day";
+o.setTime(n+3*365*r);
+t.setTime(n+30*60*1000);
+l=Offers.getCookie(q);
+if(l===null||l.length===0){Offers.setCookie(q,n,o);
+Offers.setCookie(q+"_s",k,t)
+}else{var p=n-l;
+if(p>30*60*1000){if(p>30*r){Offers.setCookie(q,n,o);
+Offers.setCookie(q+"_s",j,t)
+}else{if(p<30*r+1&&p>7*r){Offers.setCookie(q,n,o);
+Offers.setCookie(q+"_s",i,t)
+}else{if(p<7*r+1&&p>r){Offers.setCookie(q,n,o);
+Offers.setCookie(q+"_s",g,t)
+}else{if(p<r+1){Offers.setCookie(q,n,o);
+Offers.setCookie(q+"_s",f,t)
+}}}}}else{Offers.setCookie(q,n,o);
+u=Offers.getCookie(q+"_s");
+Offers.setCookie(q+"_s",u,t)
+}}h=Offers.getCookie(q+"_s");
+if(!h||h.length===0){return m
+}else{if(h!=k&&h!=j&&h!=i&&h!=g&&h!=f){return""
+}else{return h
+}}};
+this.setCookie=function(d,e,f){document.cookie=d+"="+e+";path=/;expires="+f.toGMTString()+"; domain="+location.hostname.substring(location.hostname.lastIndexOf(".",location.hostname.lastIndexOf(".")-1))
+};
+this.getMarketingRegion=function(){var d="NA";
+if(!!window.ltCountryInfo){var e=this.getCookie("CK_ISO_CODE");
+e=!!e?e:"us";
+d=window.ltCountryInfo[e].regionMapping
+}else{if(!!window.interactClientContext){d=interactClientContext.marketingRegion
+}else{if(!!window.country){d=this.marketingRegionMap[window.country]
+}}}return d
+};
+this.getMarketingPageId=function(){var e="HP";
+if(Offers.pageType.gs()){var f=Offers.location.href();
+var d=f.split("/");
+var g=d.length;
+if(g>1){e=d[g-2]
+}else{if(Offers.debug){console.log("getMarketingPageId() - failed to get marketingPageId for guided search page.")
+}}}else{if(typeof interactClientContext!=="undefined"&&typeof interactClientContext.marketingPageId!=="undefined"&&interactClientContext.marketingPageId!==""){e=interactClientContext.marketingPageId
+}}return e
+};
+this.getUserType=function(){var f="anonymous";
+if(this.channel==="fs"){var d=this.getEstore();
+var e=this.getCookie("punchout");
+if(e){d=d+"|"+e
+}f=d
+}else{if(this.channel==="tf"){f=this.getCookie("CK_DISPLAY_TYPE");
+if(!f){f="anonymous"
+}}}return f
+};
+this.getEstore=function(){var d="";
+if(this.channel==="fs"){var e=window.location.href;
+d="estore-scientific";
+if(e.indexOf("/healthcare-products")>-1){d="estore-healthcare"
+}else{if(e.indexOf("/education-products")>-1){d="estore-scied"
+}else{var f=Offers.getCookie("estore");
+if(!!f){d=f
+}}}}return d
+};
+this.getQueryParam=function(i){var e,f,g,h;
+var d=window.location.href.slice(window.location.href.indexOf("?")+1).split("&");
+for(e=0;
+e<d.length;
+e++){h=d[e].split("=");
+f=h[0];
+g=h[1];
+if(f.toUpperCase()===i.toUpperCase()){return g
+}}return""
+};
+this.addParameter=function(d,f,e){d=this.removeParameter(d,f);
+if(!!d){if(d.indexOf("?")==-1){d=d+"?"
+}if(d.indexOf("?")!=d.length-1){d=d+"&"
+}d=d+f+"="+e
+}return d
+};
+this.removeParameter=function(e,l){var k=!!e?e.split("?"):"";
+if(k.length>=2){var d=k.shift();
+var j=k.join("?");
+var h=encodeURIComponent(l)+"=";
+var g=j.split(/[&;]/g);
+for(var f=g.length;
+f-->0;
+){if(g[f].lastIndexOf(h,0)!==-1){g.splice(f,1)
+}}e=d+"?"+g.join("&")
+}return e
+};
+this.payloadRequired=function(d){if(typeof d==="undefined"){d=Offers.ips_details
+}var f=false;
+for(var e=0;
+e<d.length;
+e++){var g=d[e].name;
+if(typeof g==="undefined"){continue
+}if(g.indexOf(this.channel+"-cq")>-1||g.indexOf(this.channel+"-gs")>-1){break
+}if(g.indexOf(this.channel+"-headerfooter")==-1){f=true;
+break
+}}return f
+};
+this.checkForCartoverlayOffer=function(h,e){if(e.selector.indexOf("tf-cart-overlay")>-1){var d=$("<div/>").html(h).find("p:first").text();
+var g='<div class="dynamic-offer promotion promo-module" id="tf-cart-overlay-1"> <p id="cart-text"> '+d+'</p> <span class="chevroncont"> <div class="overlayicon chevronoverlay"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 20 5" id="chevron-up" class="overlay-cta"> <path fill="#1e8ae7" fill-rule="evenodd" d="M7.879 10.778L.1 3 2.22.879 10 8.657 17.778.879 19.9 3 10 12.9l-2.121-2.122z" /></svg> </div> <button id="overlaybutton" type="button" data-toggle="hide" data-target="#Test-Title-for-Modal-Modal" class="btn-link" id="overlay-button">Learn more</button></span></div>';
+$("#tf-cart-overlay-1").replaceWith(g);
+var f='<div class="overlay-modal-wrapper"><div class="overlay-modal-body" style="display: none;"></div></div>';
+if($(".overlay-modal-wrapper").length>0){$(".overlay-modal-wrapper").replaceWith(f)
+}else{$("#tf-cart-overlay-1").after(f)
+}}};
+this.minimalVersion=function(){if(!$||!$.fn||!$.fn.jquery){return false
+}var h=1;
+var e=5;
+var d=$.fn.jquery.split(".");
+var g=parseInt(d[0]);
+var f=parseInt(d[1]);
+return((g>=h)&&(f>=e))
+};
+this.indexOfIPS=function(h,f,g){for(var e=(g||0),d=h.length;
+e<d;
+e++){if(h[e].name===f){return e
+}}return -1
+};
+this.getChannel=function(){var d="thermofisher.com";
+var i="fishersci.";
+var h="tf";
+var k="fs";
+var f=Offers.location.hostname();
+var j=(f.indexOf(d)>0);
+var e=(f.indexOf(i)>0);
+var g="";
+if(j){g=h
+}if(e){g=k
+}return g
+};
+this.processPagePath=function(e,d){d=d.replace(/&?debug_offers=true&?/g,"");
+d=d.replace(/\?$/g,"");
+return e+d
+};
+this.location={href:function(){return window.location.href
+},hostname:function(){return window.location.hostname
+},search:function(){return window.location.search
+},pathname:function(){return window.location.pathname
+},host:function(){return window.location.host
+},origin:function(){return window.location.origin
+}}
+}var Offers=new Offers();
+(function(){Offers.init()
+})();
+$(function(){if(Offers.initComplete&&Offers.validVersion){Offers.start()
+}window.setTimeout(function(){Offers.showDefaultContent()
+},5000)
+});

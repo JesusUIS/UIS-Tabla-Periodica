@@ -1,0 +1,17 @@
+_satellite.pushAsyncScript(function(event, target, $variables){
+  (function(){
+ 
+  if(document.location.href.indexOf('punchout.fishersci') !== -1
+     && _satellite.getVar('pageType')!=="Single Product Page"){
+    return false;
+  }
+ 
+        var scriptTag = document.createElement('script');
+    scriptTag.type = 'text/javascript';
+    scriptTag.async = true;
+    setTimeout(function()
+    { scriptTag.src = 'https://nebula-cdn.kampyle.com/wu/638829/onsite/embed.js' }
+    , 3000)
+    document.body.appendChild(scriptTag);
+})();
+});

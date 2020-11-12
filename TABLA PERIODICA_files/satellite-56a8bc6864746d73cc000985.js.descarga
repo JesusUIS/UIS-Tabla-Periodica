@@ -1,0 +1,7 @@
+_satellite.pushAsyncScript(function(event, target, $variables){
+  var delay=1000;//1 seconds
+    setTimeout(function(){
+_satellite.track("postDOM");
+    //your code to be executed after 1 seconds
+    },delay); 
+});

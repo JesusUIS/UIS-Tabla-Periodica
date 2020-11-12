@@ -1,0 +1,34 @@
+
+
+
+
+
+
+
+
+
+
+var globalCQConfigs = window.globalCQConfigs ||{};
+
+// design path
+
+globalCQConfigs.WCMMode = "DISABLED";
+globalCQConfigs.isDesignMode = false;
+globalCQConfigs.isDisabledMode = true;
+globalCQConfigs.isEditMode = false;
+globalCQConfigs.isPreviewMode = false;
+globalCQConfigs.isReadOnlyMode = false;
+globalCQConfigs.publicRootDir = "/etc/designs/fishersci";
+globalCQConfigs.pageLocale = "es_ES";
+globalCQConfigs.localePath = "/content/fishersci/eu/es_ES";
+
+
+// current page path in CQ terms
+globalCQConfigs.currentPagePath="/content/fishersci/eu/es_ES/periodic-table";
+globalCQConfigs.currentpagetemplate = "/apps/fishersci/templates/contentPage";
+globalCQConfigs.currentDesignPath="/etc/designs/fishersci";
+globalCQConfigs.storeId="10652";
+
+
+globalCQConfigs.isBrandPage = false;
+

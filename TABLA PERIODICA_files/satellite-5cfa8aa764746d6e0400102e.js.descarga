@@ -1,0 +1,16 @@
+_satellite.pushAsyncScript(function(event, target, $variables){
+  setTimeout(function(){
+if(_satellite.readCookie("punchout")){
+  var newCache = new Date();
+  _satellite.removeCookie('new_cart');
+  _satellite.removeCookie('new_checkout');
+  
+   //Update the shopping cartlet link to old
+  var $shoppingCartlet = $('.shopping_cart_icon');
+  var url = "/shop/orderdisplayview?nocache=" + newCache.getTime();
+  $shoppingCartlet.attr('href', url);
+  console.log("cartlet icon changed");
+  console.log("new cart cookie removed all non-punchout users");
+}
+}, 1000)
+});

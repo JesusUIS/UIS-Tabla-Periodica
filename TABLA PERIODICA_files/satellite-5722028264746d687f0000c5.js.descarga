@@ -1,0 +1,31 @@
+_satellite.pushBlockingScript(function(event, target, $variables){
+  switch(LocalePath.getCountry())
+{
+  case "se":
+    var currency='SEK';
+    break;
+  case "no":
+    var currency='NOK';
+    break;
+  case "dk":
+    var currency='DKK';
+    break;
+  case "ch":
+    var currency='CHF';
+    break;
+  case "gb":
+    var currency='GBP';
+    break;
+  default:
+    var currency='EUR';
+}
+
+$.ajax({ 
+url: 'https://api.fixer.io/latest?base=USD',
+dataType: 'json',
+success: function(data){ 
+  var conversionRate=((1 / data.rates[currency]).toFixed(4));
+ _satellite.setVar("exchangeRate",conversionRate);
+  }
+ })
+});
